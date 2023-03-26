@@ -1,129 +1,188 @@
 #include <stdio.h>
-#include <string.h>
+#include <stdlib.h>
 #include <conio.h>
+#include <time.h>
 #include <windows.h>
-#include <locale.h>
 
-const int ROWS = 10;
-const int COLS = 10;
-const char BOUNDARY_SYMBOL[] = "##";
-const char SNAKE_SYMBOL[] = "%%";
+#define WIDTH 20
+#define HEIGHT 20
 
-struct SnakeTile
+typedef struct Fruit
 {
-  int x;
-  int y;
+  int x, y;
+} Fruit;
+
+typedef struct SnakeSegment
+{
+  int x, y;
+  struct SnakeSegment *next;
+} SnakeSegment;
+
+enum Direction
+{
+  STOP = 0,
+  LEFT,
+  RIGHT,
+  UP,
+  DOWN
 };
 
-void clear()
-{
-  printf("\033[H\033[J");
-}
+SnakeSegment *head;
+Fruit fruit;
+enum Direction dir;
 
-void goToXY(int x, int y)
+void GoToXY(int x, int y)
 {
   printf("\033[%d;%dH", y, x);
 }
 
-void drawBoundaries()
+void Setup()
 {
-  for (int x = 1; x <= (COLS + 2) * 2; x += 2)
+  dir = STOP;
+
+  head = malloc(sizeof(SnakeSegment));
+  head->x = (int)(WIDTH / 2);
+  head->y = (int)(HEIGHT / 2);
+  head->next = NULL;
+
+  fruit.x = rand() % (WIDTH - 1) + 1;
+  fruit.y = rand() % (HEIGHT - 1) + 1;
+}
+
+void DrawBoundaries()
+{
+  for (int i = 0; i < WIDTH + 2; i++)
   {
-    goToXY(x, 1);
-    printf("%s", BOUNDARY_SYMBOL);
-    goToXY(x, ROWS + 2);
-    printf("%s", BOUNDARY_SYMBOL);
+    GoToXY(i, 0);
+    printf("#");
   }
-  for (int y = 1; y <= ROWS + 2; y++)
+
+  for (int i = 1; i < HEIGHT + 1; i++)
   {
-    goToXY(1, y);
-    printf("%s", BOUNDARY_SYMBOL);
-    goToXY((COLS + 2) * 2 - 1, y);
-    printf("%s", BOUNDARY_SYMBOL);
+    GoToXY(0, i);
+    printf("#");
+    GoToXY(WIDTH + 1, i);
+    printf("#");
+  }
+
+  for (int i = 0; i < WIDTH + 2; i++)
+  {
+    GoToXY(i, HEIGHT + 1);
+    printf("#");
   }
 }
 
-void draw(struct SnakeTile snake[])
+void Draw()
 {
-  clear();
-  drawBoundaries();
+  system("cls"); // clear the console
 
-  for (int i = 0; i <= sizeof(snake) / sizeof(snake[0]); i++)
+  DrawBoundaries();
+
+  GoToXY(head->x + 1, head->y + 1);
+  printf("O");
+
+  GoToXY(fruit.x + 1, fruit.y + 1);
+  printf("F");
+
+  for (SnakeSegment *current = head->next; current != NULL; current = current->next)
   {
-    goToXY(snake[i].x * 2, snake[i].y);
-    printf("%s", SNAKE_SYMBOL);
+    GoToXY(current->x + 1, current->y + 1);
+    printf("o");
+  }
+  GoToXY(0, HEIGHT + 2);
+}
+
+void Input()
+{
+  if (_kbhit())
+  {
+    switch (_getch())
+    {
+    case 'a':
+      dir = LEFT;
+      break;
+    case 'd':
+      dir = RIGHT;
+      break;
+    case 'w':
+      dir = UP;
+      break;
+    case 's':
+      dir = DOWN;
+      break;
+    case 'q':
+      exit(0);
+    }
+  }
+}
+
+void Logic()
+{
+  int pX = head->x;
+  int pY = head->y;
+  for (SnakeSegment *current = head->next; current != NULL; current = current->next)
+  {
+    int tempX = current->x;
+    int tempY = current->y;
+    current->x = pX;
+    current->y = pY;
+    pX = tempX;
+    pY = tempY;
   }
 
-  goToXY(0, ROWS + 3);
+  switch (dir)
+  {
+  case LEFT:
+    head->x--;
+    break;
+  case RIGHT:
+    head->x++;
+    break;
+  case UP:
+    head->y--;
+    break;
+  case DOWN:
+    head->y++;
+    break;
+  default:
+    break;
+  }
+
+  if (head->x >= WIDTH || head->x <= 0 || head->y >= HEIGHT || head->y <= 0)
+    exit(0);
+
+  for (SnakeSegment *current = head->next; current != NULL; current = current->next)
+    if (current->x == head->x && current->y == head->y)
+      exit(0);
+
+  if (head->x == fruit.x && head->y == fruit.y)
+  {
+    fruit.x = rand() % (WIDTH - 1) + 1;
+    fruit.y = rand() % (HEIGHT - 1) + 1;
+
+    SnakeSegment *newSegment = malloc(sizeof(SnakeSegment));
+    newSegment->next = NULL;
+
+    SnakeSegment *current = head;
+    while (current->next != NULL)
+      current = current->next;
+
+    current->next = newSegment;
+  }
 }
 
 int main()
 {
-  setlocale(LC_ALL, "en_US.UTF-8");
+  srand(time(NULL)); // Seed rand function with current time
+  Setup();
 
-  int run = 1;
-  struct SnakeTile snake[] = {
-      {.x = (int)(ROWS / 2), .y = (int)(COLS / 2)},
-      {.x = (int)(ROWS / 2), .y = (int)(COLS / 2 + 1)},
-      {.x = (int)(ROWS / 2), .y = (int)(COLS / 2 + 2)},
-      {.x = (int)(ROWS / 2), .y = (int)(COLS / 2 + 3)},
-  };
-  int xVel = 0;
-  int yVel = 0;
-
-  draw(snake);
-  while (run)
+  while (1)
   {
-    if (kbhit())
-    {
-      int c = getch();
-      if ((c) == 27)
-        run = 0;
-
-      switch (c)
-      {
-      case 72: // up arrow
-      case 'w':
-        xVel = 0;
-        yVel = -1;
-        break;
-      case 80: // down arrow
-      case 's':
-        xVel = 0;
-        yVel = 1;
-        break;
-      case 75: // left arrow
-      case 'a':
-        xVel = -1;
-        yVel = 0;
-        break;
-      case 77: // right arrow
-      case 'd':
-        xVel = 1;
-        yVel = 0;
-        break;
-      }
-    }
-
-    for (int i = sizeof(snake) / sizeof(snake[0]) - 1; i > 0; i--)
-    {
-      snake[i].x = snake[i - 1].x;
-      snake[i].y = snake[i - 1].y;
-    }
-
-    snake[0].x += xVel;
-    snake[0].y += yVel;
-
-    if (COLS + 1 < snake[0].x || snake[0].x < 1 || ROWS + 1 < snake[0].y || snake[0].y < 2)
-    {
-      printf("YOU LOSE! %d", snake[0].x);
-      run = 0;
-      break;
-    }
-
-    draw(snake);
-
-    Sleep(150);
+    Draw();
+    Input();
+    Logic();
+    Sleep(100);
   }
+
   return 0;
 }
